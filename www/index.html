@@ -820,17 +820,44 @@ addSaveAnywayLink.addEventListener('click', () => attemptSaveStation(true));
 // A small built-in list of known Israeli stream URLs. The scanner tries each
 // one live in the browser and only keeps the ones that actually respond -
 // stream URLs like these tend to rot, so we verify instead of trusting them.
-// This exact list was verified end-to-end with tools/station-scanner.html
-// against the full candidate pool gathered from various sources (official
-// CDNs, community playlists, IPTV gists) - everything that didn't respond
-// (Kan Bet/88/Gimel via both vidnt.com and Akamai, Reshet Gimmel, 106FM
-// Radio Haifa, Kan Aleph/Moreshet/Kol HaMusica guesses, KZradio) was
-// removed rather than kept as dead weight.
+// This list was verified end-to-end (live playback confirmed, not just a
+// non-erroring response) against a much larger candidate pool gathered from
+// official CDNs, community playlists, and radio directories. Confirmed-dead
+// candidates (old Kan vidnt.com/Akamai paths, 103FM/109FM/90FM/Radio Sol/
+// Kol Chai old ereznet path, Kahol Yavan, ClickFM, Radio Dance, etc.) and
+// unverified ones (103FM/100FM Radius cybercdn paths that buffered once then
+// stalled) were left out rather than kept as dead weight or guesses.
 const CANDIDATE_STATIONS = [
   { name: 'גלגלצ', sub: 'Galgalatz', url: 'https://glzwizzlv.bynetcdn.com/glglz_mp3', type: 'mp3' },
-  { name: 'אקו 99', sub: 'Eco 99FM', url: 'https://eco01.livecdn.biz/ecolive/99fm_aac/icecast.audio', type: 'mp3' },
   { name: 'גלי צה"ל', sub: 'Galatz', url: 'https://glzwizzlv.bynetcdn.com/glz_mp3', type: 'mp3' },
-  { name: '96FM', sub: 'Kol Rega Radio', url: 'http://radio.96fm.co.il/96fm', type: 'mp3' },
+  { name: 'אקו 99FM', sub: 'Eco 99FM', url: 'https://eco01.livecdn.biz/ecolive/99fm_aac/icecast.audio', type: 'mp3' },
+  { name: '96FM קול רגע', sub: 'Kol Rega', url: 'http://radio.96fm.co.il/96fm', type: 'mp3' },
+  { name: '96FM קול רגע', sub: 'Kol Rega (HTTPS alt endpoint)', url: 'https://cdn.cybercdn.live/Kol_Rega/Live_Audio/icecast.audio', type: 'mp3' },
+  { name: 'גלגלצ - ים תיכוני', sub: 'Galgalatz Mediterranean (med bitrate)', url: 'http://glzwizzlv.bynetcdn.com/glglz_med_mp3', type: 'mp3' },
+  { name: '102FM רדיו תל אביב', sub: 'Tel Aviv regional', url: 'http://102.livecdn.biz/102fm_aac', type: 'mp3' },
+  { name: '104.5FM צפון ללא הפסקה', sub: 'Tzafon Lelo Hafsaka (North)', url: 'http://1045fm.cdnwz.net/1045fm', type: 'mp3' },
+  { name: '107.5FM רדיו חיפה', sub: 'Radio Haifa', url: 'http://1075.livecdn.biz/radiohaifa', type: 'mp3' },
+  { name: 'רדיו ביט', sub: 'Radio Beat', url: 'http://live.radio-beat.com/stream1', type: 'mp3' },
+  { name: 'רדיו קול חי', sub: 'Radio Kol Chai (93FM)', url: 'https://live.kcm.fm/live-new', type: 'mp3' },
+  { name: 'רדיו קול ברמה', sub: 'Kol Barama (92.1FM)', url: 'https://cdn.cybercdn.live/Kol_Barama/Live_Audio/icecast.audio', type: 'mp3' },
+  { name: 'Up2Dance Radio', sub: 'Dance/electronic', url: 'https://icecast.live/up2dance', type: 'mp3' },
+  { name: 'רדיו זה רוק', sub: 'Ze Rock Radio — 24/7 rock', url: 'https://icecast.live/zerock', type: 'mp3' },
+  { name: 'רדיו להיט', sub: 'Radio Lahit', url: 'http://usa3.fastcast4u.com:1548/stream', type: 'mp3' },
+  { name: 'Hit Radio', sub: 'Israeli hits', url: 'http://s3.free-shoutcast.com:18240/;', type: 'mp3' },
+  { name: 'Teenbuzz Radio', sub: 'Teen/pop', url: 'https://streaming.broadcast.radio/teenbuzzradio', type: 'mp3' },
+  { name: "כאן רשת ב'", sub: 'Kan Reshet Bet — news/talk', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_BET.mp3', type: 'mp3' },
+  { name: "כאן רשת ג'", sub: 'Kan Gimmel — Israeli music', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_GIMMEL.mp3', type: 'mp3' },
+  { name: 'כאן 88', sub: 'Kan 88FM — rock/jazz/world', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_88.mp3', type: 'mp3' },
+  { name: 'כאן קול המוזיקה', sub: 'Kan Kol HaMusica — classical', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_KOL_HAMUSICA.mp3', type: 'mp3' },
+  { name: 'כאן תרבות', sub: 'Kan Tarbut (former Reshet Aleph)', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_TARBUT.mp3', type: 'mp3' },
+  { name: 'כאן מורשת', sub: 'Kan Moreshet — heritage', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_MORESHET.mp3', type: 'mp3' },
+  { name: 'כאן רק"ע', sub: 'Kan Reka — foreign-language', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_REKA.mp3', type: 'mp3' },
+  { name: 'רדיו א-שמס', sub: 'Radio Ashams (101.1FM, Arabic)', url: 'https://cdna.streamgates.net/Ashams/Live/icecast.audio', type: 'mp3' },
+  { name: 'רדיו דרום 97FM', sub: 'Radio Darom (South)', url: 'https://cdn.cybercdn.live/Darom_97FM/Live/icecast.audio', type: 'mp3' },
+  { name: '91FM לב המדינה', sub: 'Lev HaMedina', url: 'https://cdn.cybercdn.live/Lev_Hamedina/Audio/icecast.audio', type: 'mp3' },
+  { name: 'רדיו גלי ישראל', sub: 'Galei Israel (94FM)', url: 'https://cdn.cybercdn.live/Galei_Israel/Live/icecast.audio', type: 'mp3' },
+  { name: 'הקצה (KZradio)', sub: 'HaKatze — alternative', url: 'https://kzradio.mediacast.co.il/kzradio_live/kzradio/icecast.audio', type: 'mp3' },
+  { name: 'راديو ناس', sub: 'Radio Nas (Arabic)', url: 'https://cdna.streamgates.net/RadioNas/Live-Audio/icecast.audio', type: 'mp3' },
 ];
 
 const SCAN_TIMEOUT_MS = 15000;
