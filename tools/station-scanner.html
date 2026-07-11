@@ -325,6 +325,41 @@ function stopTestAudio(audioEl, hlsHolder) {
   audioEl.removeAttribute('src');
 }
 
+// Best-effort: if the direct test fails, ask the browser to follow HTTP
+// redirects and see where the URL actually lands, then retry there. Only
+// works when the server sends CORS headers on every hop (verified locally -
+// it does work when they're present) - most bare icecast/shoutcast streams
+// don't, so this quietly gives up in that case rather than throwing. Note
+// <audio src> already follows plain redirects on its own; this only helps
+// when the origin server refuses outright (e.g. anti-hotlinking) before a
+// redirect would happen, and a fetch() probe happens to get further.
+async function resolveRedirect(url) {
+  try {
+    const res = await fetch(url, { method: 'GET', redirect: 'follow', cache: 'no-store' });
+    if (res.body && typeof res.body.cancel === 'function') {
+      res.body.cancel().catch(() => {});
+    }
+    if (res.url && res.url !== url) return res.url;
+  } catch (e) {
+    // Cross-origin without CORS headers, network error, etc. - can't tell.
+  }
+  return null;
+}
+
+const REDIRECT_MAX_HOPS = 4;
+
+async function testWithRedirectResolve(audioEl, hlsHolder, url, type) {
+  let currentUrl = url;
+  for (let hop = 0; ; hop++) {
+    const ok = await testStreamPlayable(audioEl, hlsHolder, currentUrl, type);
+    if (ok) return { ok: true, url: currentUrl };
+    if (hop >= REDIRECT_MAX_HOPS) return { ok: false, url: currentUrl };
+    const resolved = await resolveRedirect(currentUrl);
+    if (!resolved || resolved === currentUrl) return { ok: false, url: currentUrl };
+    currentUrl = resolved;
+  }
+}
+
 startScanBtn.addEventListener('click', runScan);
 stopScanBtn.addEventListener('click', () => { scanAborted = true; });
 
@@ -358,14 +393,15 @@ async function runScan() {
       audioEl.muted = true;
       audioEl.preload = 'none';
       const hlsHolder = { hls: null };
-      const ok = await testStreamPlayable(audioEl, hlsHolder, candidate.url, candidate.type);
+      const result = await testWithRedirectResolve(audioEl, hlsHolder, candidate.url, candidate.type);
       stopTestAudio(audioEl, hlsHolder);
 
-      candidate._ok = ok;
-      cell.textContent = ok ? 'Working' : 'No response';
-      cell.className = 'status-cell ' + (ok ? 'ok' : 'fail');
+      candidate._ok = result.ok;
+      candidate._resolvedUrl = result.ok && result.url !== candidate.url ? result.url : null;
+      cell.textContent = result.ok ? (candidate._resolvedUrl ? 'Working (redirected)' : 'Working') : 'No response';
+      cell.className = 'status-cell ' + (result.ok ? 'ok' : 'fail');
       tested++;
-      if (ok) working++;
+      if (result.ok) working++;
       updateProgress();
     }
   }
@@ -384,7 +420,7 @@ async function runScan() {
 function buildExport() {
   const working = candidates
     .filter((c) => c._ok)
-    .map((c) => ({ name: c.name, sub: c.sub || '', url: c.url, type: c.type }));
+    .map((c) => ({ name: c.name, sub: c.sub || '', url: c._resolvedUrl || c.url, type: c.type }));
   exportOutput.value = JSON.stringify(working, null, 2);
   exportSection.style.display = 'block';
 }

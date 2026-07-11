@@ -797,20 +797,20 @@ async function attemptSaveStation(skipTest) {
   addSaveBtn.disabled = true;
   addSaveBtn.textContent = 'Testing…';
   addError.textContent = '';
-  const ok = await testStreamPlayable(addTestAudio, addHlsHolder, url, type);
+  const result = await testWithRedirectResolve(addTestAudio, addHlsHolder, url, type, REDIRECT_MAX_HOPS);
   stopTestAudio(addTestAudio, addHlsHolder);
   addSaveBtn.disabled = false;
   addSaveBtn.textContent = 'Save';
 
   if (!addModalOpen) return; // user canceled while we were testing
 
-  if (!ok) {
+  if (!result.ok) {
     addError.textContent = "Couldn't confirm this stream is live right now.";
     addSaveAnywayLink.style.display = 'block';
     return;
   }
 
-  finalizeSaveStation(station);
+  finalizeSaveStation(result.url === url ? station : { ...station, url: result.url });
 }
 
 addSaveBtn.addEventListener('click', () => attemptSaveStation(false));
@@ -829,7 +829,7 @@ const CANDIDATE_STATIONS = [
   { name: 'כאן 88', sub: 'Kan 88', url: 'https://iba-s.vidnt.com/iba_radio-88fmMRepeat/_definst_/smil:radio-88fmM.smil/playlist.m3u8', type: 'hls' },
   { name: 'רשת גימל', sub: 'Reshet Gimmel', url: 'https://radiocast-rr-d.vidnt.com/ipbc_IPBCgimmelLAM', type: 'hls' },
   { name: '106FM', sub: 'Radio Haifa', url: 'https://106fm.livecdn.biz:7075/', type: 'mp3' },
-  { name: 'אקו 99', sub: 'Eco 99FM', url: 'https://glzeco.bynetcdn.com/eco_mp3', type: 'mp3' },
+  { name: 'אקו 99', sub: 'Eco 99FM', url: 'https://eco01.livecdn.biz/ecolive/99fm_aac/icecast.audio', type: 'mp3' },
   { name: 'גלי צה"ל', sub: 'Galatz', url: 'https://glzwizzlv.bynetcdn.com/glz_mp3', type: 'mp3' },
   { name: 'כאן אלף', sub: 'Kan Aleph', url: 'https://radiocast-rr-d.vidnt.com/ipbc_IPBCalephLAM', type: 'hls' },
   { name: 'כאן מורשת', sub: 'Kan Moreshet', url: 'https://radiocast-rr-d.vidnt.com/ipbc_IPBCmoreshetLAM', type: 'hls' },
@@ -900,8 +900,46 @@ function stopTestAudio(audioEl, hlsHolder) {
   audioEl.removeAttribute('src');
 }
 
+// Best-effort: ask the browser to follow HTTP redirects for a URL and report
+// where it actually lands. Only works when the server sends CORS headers -
+// most bare icecast/shoutcast streams don't, so this silently gives up
+// (returns null) in that case rather than throwing. <audio src> already
+// follows redirects on its own; this only helps when the *origin* server
+// refuses the request outright (common anti-hotlinking behavior) before a
+// redirect would even happen, but happens to allow it for this kind of
+// probe, or for servers that behave differently on repeat requests.
+async function resolveRedirect(url) {
+  try {
+    const res = await fetch(url, { method: 'GET', redirect: 'follow', cache: 'no-store' });
+    if (res.body && typeof res.body.cancel === 'function') {
+      res.body.cancel().catch(() => {});
+    }
+    if (res.url && res.url !== url) return res.url;
+  } catch (e) {
+    // Cross-origin without CORS headers, network error, etc. - can't tell.
+  }
+  return null;
+}
+
+// Tests a URL; if it fails, tries resolving where it redirects to and
+// re-tests that instead, repeating up to maxHops times. Returns the URL
+// that actually worked (which may differ from the one passed in).
+async function testWithRedirectResolve(audioEl, hlsHolder, url, type, maxHops) {
+  let currentUrl = url;
+  for (let hop = 0; ; hop++) {
+    const ok = await testStreamPlayable(audioEl, hlsHolder, currentUrl, type);
+    if (ok) return { ok: true, url: currentUrl };
+    if (hop >= maxHops) return { ok: false, url: currentUrl };
+    const resolved = await resolveRedirect(currentUrl);
+    if (!resolved || resolved === currentUrl) return { ok: false, url: currentUrl };
+    currentUrl = resolved;
+  }
+}
+
+const REDIRECT_MAX_HOPS = 4;
+
 function testCandidate(candidate) {
-  return testStreamPlayable(scanAudio, scanHlsHolder, candidate.url, candidate.type);
+  return testWithRedirectResolve(scanAudio, scanHlsHolder, candidate.url, candidate.type, REDIRECT_MAX_HOPS);
 }
 
 function stopScanAudio() {
@@ -988,29 +1026,32 @@ async function runScan() {
     }
 
     row.setStatus('testing', 'Testing…');
-    const ok = await testCandidate(candidate);
+    const result = await testCandidate(candidate);
     if (scanAbort) { stopScanAudio(); break; }
 
-    if (!ok) {
+    if (!result.ok) {
       row.setStatus('failed', 'No response');
       failed++;
       continue;
     }
 
+    const redirected = result.url !== candidate.url;
+    const resolvedCandidate = redirected ? { ...candidate, url: result.url } : candidate;
+
     if (autoApprove) {
       await sleep(SCAN_CONFIRM_MS);
       if (scanAbort) { stopScanAudio(); break; }
-      addStationFromScan(candidate);
-      row.setStatus('added', 'Added');
+      addStationFromScan(resolvedCandidate);
+      row.setStatus('added', redirected ? 'Added (redirected URL)' : 'Added');
       added++;
       stopScanAudio();
     } else {
-      row.setStatus('confirm', 'Works — add it?');
+      row.setStatus('confirm', redirected ? 'Works via redirect — add it?' : 'Works — add it?');
       const decision = await waitForDecision();
       stopScanAudio();
       if (decision === 'add') {
-        addStationFromScan(candidate);
-        row.setStatus('added', 'Added');
+        addStationFromScan(resolvedCandidate);
+        row.setStatus('added', redirected ? 'Added (redirected URL)' : 'Added');
         added++;
       } else {
         row.setStatus('skipped', 'Skipped');

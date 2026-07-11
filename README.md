@@ -35,6 +35,17 @@ browser) and is auto-deployed to GitHub Pages by
     getting around that without a server-side relay, which is out of scope
     for a single-file client app. The scanner exists to sort out which
     stream URLs happen to allow this regardless.
+  - If a stream fails outright, the test also tries following an HTTP
+    redirect to wherever the URL actually resolves to and retries there
+    (up to 4 hops) — this only works when the server sends CORS headers on
+    every hop of the redirect (verified against a local test server: it
+    genuinely works when they're present). Note this is a narrow case: a
+    plain `<audio>` element already follows ordinary redirects on its own,
+    so this only helps when the origin server refuses the request outright
+    (e.g. before deciding whether to redirect) but a `fetch()` probe gets
+    further. A dead/deprecated domain that never redirects at all (no
+    CORS, no 3xx, just unreachable) can't be resolved this way — that's
+    just a stale URL that needs replacing, not something to auto-detect.
 - `www/hls.min.js` — vendored copy of hls.js 1.5.13 (no CDN dependency at
   runtime).
 - `android/` — the Capacitor-generated Android project, plus:
