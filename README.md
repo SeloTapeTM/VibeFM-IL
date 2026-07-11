@@ -56,7 +56,7 @@ a GitHub Actions runner, Android Studio, etc.). Steps below.
 
 Prerequisites:
 - Node.js 18+
-- JDK 17+
+- JDK 21+ (Capacitor 8's Android module compiles against source/target 21)
 - Android SDK (Android Studio is the easiest way to get this — it installs
   the SDK, platform, and build-tools for you). If you'd rather use the
   command-line tools only, install `cmdline-tools`, then:
