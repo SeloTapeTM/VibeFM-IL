@@ -840,6 +840,16 @@ const CANDIDATE_STATIONS = [
   // Dalet, Reka, alt Eco 99FM source) - this is the one that actually
   // responded; the rest were removed as confirmed dead.
   { name: '96FM', sub: 'Kol Rega Radio', url: 'http://radio.96fm.co.il/96fm', type: 'mp3' },
+  // From a March-2024 IPTV gist (meatyite) - Kan's own Akamai *master*
+  // playlists (letting hls.js pick renditions) rather than a hardcoded
+  // chunklist path. Kept alongside the existing Kan Bet/88 entries (different
+  // CDN/path) rather than replacing them, since either might be the one
+  // that's actually up on a given day.
+  { name: "כאן ב' (אקמאי)", sub: 'Kan Bet (Akamai master)', url: 'https://kanlivep2event-i.akamaihd.net/hls/live/749624/749624/master.m3u8', type: 'hls' },
+  { name: 'כאן 88 (אקמאי)', sub: 'Kan 88 (Akamai master)', url: 'https://kanlivep2event-i.akamaihd.net/hls/live/749623/749623/master.m3u8', type: 'hls' },
+  { name: 'כאן גימל', sub: 'Kan Gimel (Akamai)', url: 'https://kanlivep2event-i.akamaihd.net/hls/live/749625/749625/master.m3u8', type: 'hls' },
+  // From yuvadm/streams on GitHub.
+  { name: 'KZ Radio', sub: 'kzradio.net', url: 'http://s2.kzradio.net/live/mp3/icecast.audio', type: 'mp3' },
 ];
 
 const SCAN_TIMEOUT_MS = 15000;
