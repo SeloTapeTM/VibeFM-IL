@@ -200,10 +200,14 @@
   .switch input:checked + .track { background: var(--accent); }
   .switch input:checked + .track .thumb { transform: translateX(18px); }
 
-  #addStationLink {
+  #stationLinks {
+    display: flex;
+    flex-direction: column;
+    margin-top: 14px;
+  }
+  .text-link {
     display: block;
     text-align: center;
-    margin-top: 14px;
     font-size: 0.85rem;
     color: var(--accent);
     cursor: pointer;
@@ -294,7 +298,8 @@
     #playBtn svg { width: 20px; height: 20px; }
     #volumeRow { flex: 1 1 160px; margin: 0; }
     #screenRow { margin: 0; flex: 0 0 auto; }
-    #addStationLink { margin: 0; flex: 0 0 auto; padding: 0; }
+    #stationLinks { margin: 0; flex-direction: row; gap: 14px; flex: 0 0 auto; }
+    .text-link { padding: 0; }
   }
 
   /* ---------- Add-station modal ---------- */
@@ -349,6 +354,81 @@
     min-height: 1.1em;
     margin-top: 8px;
   }
+
+  /* ---------- Scan-for-stations modal ---------- */
+  #scanModalBackdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+  }
+  #scanModalBackdrop.open { display: flex; }
+  #scanModal {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 20px;
+    width: min(420px, 90vw);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  #scanModal h2 { margin: 0 0 10px; font-size: 1.1rem; }
+  #scanIntro {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.4;
+    margin: 0 0 14px;
+  }
+  #scanAutoApproveRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    margin-bottom: 14px;
+  }
+  #scanList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 46vh;
+    overflow-y: auto;
+    margin-bottom: 10px;
+  }
+  .scan-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #0d1117;
+    border: 1px solid #232a36;
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+  .scan-row-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  .scan-row-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .scan-row-sub { font-size: 0.72rem; color: var(--muted); }
+  .scan-row-status { font-size: 0.75rem; color: var(--muted); flex-shrink: 0; }
+  .scan-row.scan-testing .scan-row-status { color: var(--accent); }
+  .scan-row.scan-confirm .scan-row-status { color: var(--accent2); }
+  .scan-row.scan-added .scan-row-status { color: var(--accent2); }
+  .scan-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .scan-row-actions button {
+    border: none;
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .scan-action-add { background: var(--accent); color: white; }
+  .scan-action-skip { background: #2b3441; color: var(--text); }
+  #scanSummary { font-size: 0.8rem; color: var(--muted); min-height: 1.2em; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -382,12 +462,16 @@
           <span class="track"><span class="thumb"></span></span>
         </label>
       </div>
-      <div id="addStationLink">+ Add a station</div>
+      <div id="stationLinks">
+        <span id="addStationLink" class="text-link">+ Add manually</span>
+        <span id="scanStationsLink" class="text-link">🔍 Scan for stations</span>
+      </div>
     </div>
   </div>
 </div>
 
 <audio id="audio" preload="none"></audio>
+<audio id="scanAudio" preload="none"></audio>
 
 <div id="addModalBackdrop">
   <div id="addModal">
@@ -412,6 +496,30 @@
   </div>
 </div>
 
+<div id="scanModalBackdrop">
+  <div id="scanModal">
+    <h2>Scan for stations</h2>
+    <p id="scanIntro">
+      Tests a small built-in list of known Israeli stations and plays each one
+      briefly to check it's actually live. Streams change often, so results vary
+      run to run.
+    </p>
+    <div id="scanAutoApproveRow">
+      <span>Auto-add stations that work</span>
+      <label class="switch">
+        <input type="checkbox" id="scanAutoApprove" checked>
+        <span class="track"><span class="thumb"></span></span>
+      </label>
+    </div>
+    <div id="scanList"></div>
+    <div id="scanSummary"></div>
+    <div class="modal-actions">
+      <button id="scanCloseBtn">Close</button>
+      <button id="scanActionBtn">Start scan</button>
+    </div>
+  </div>
+</div>
+
 <script>
 'use strict';
 
@@ -427,6 +535,7 @@ const statusEl = document.getElementById('status');
 const volumeSlider = document.getElementById('volume');
 const keepScreenOnToggle = document.getElementById('keepScreenOn');
 const addStationLink = document.getElementById('addStationLink');
+const scanStationsLink = document.getElementById('scanStationsLink');
 
 const addModalBackdrop = document.getElementById('addModalBackdrop');
 const addName = document.getElementById('addName');
@@ -436,6 +545,14 @@ const addType = document.getElementById('addType');
 const addError = document.getElementById('addError');
 const addCancelBtn = document.getElementById('addCancelBtn');
 const addSaveBtn = document.getElementById('addSaveBtn');
+
+const scanAudio = document.getElementById('scanAudio');
+const scanModalBackdrop = document.getElementById('scanModalBackdrop');
+const scanAutoApprove = document.getElementById('scanAutoApprove');
+const scanList = document.getElementById('scanList');
+const scanSummary = document.getElementById('scanSummary');
+const scanCloseBtn = document.getElementById('scanCloseBtn');
+const scanActionBtn = document.getElementById('scanActionBtn');
 
 let stations = loadStations();
 let currentIndex = null;
@@ -659,6 +776,235 @@ addSaveBtn.addEventListener('click', () => {
   closeAddModal();
 
   if (wasEmpty) selectStation(0, true);
+});
+
+/* ---------- Scan for stations ---------- */
+// A small built-in list of known Israeli stream URLs. The scanner tries each
+// one live in the browser and only keeps the ones that actually respond -
+// stream URLs like these tend to rot, so we verify instead of trusting them.
+const CANDIDATE_STATIONS = [
+  { name: 'גלגלצ', sub: 'Galgalatz', url: 'https://glzwizzlv.bynetcdn.com/glglz_mp3', type: 'mp3' },
+  { name: "כאן ב'", sub: 'Kan Bet', url: 'https://kanlivep2event-i.akamaihd.net/hls/live/749624/749624/kanbet_mp3/chunklist.m3u8', type: 'hls' },
+  { name: 'כאן 88', sub: 'Kan 88', url: 'https://iba-s.vidnt.com/iba_radio-88fmMRepeat/_definst_/smil:radio-88fmM.smil/playlist.m3u8', type: 'hls' },
+  { name: 'רשת גימל', sub: 'Reshet Gimmel', url: 'https://radiocast-rr-d.vidnt.com/ipbc_IPBCgimmelLAM', type: 'hls' },
+  { name: '106FM', sub: 'Radio Haifa', url: 'https://106fm.livecdn.biz:7075/', type: 'mp3' },
+  { name: 'אקו 99', sub: 'Eco 99FM', url: 'https://glzeco.bynetcdn.com/eco_mp3', type: 'mp3' },
+];
+
+const SCAN_TIMEOUT_MS = 9000;
+const SCAN_CONFIRM_MS = 2000;
+
+let scanHls = null;
+let scanRunning = false;
+let scanAbort = false;
+let scanRows = new Map();
+let pendingDecisionResolve = null;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function stationExists(url) {
+  return stations.some((s) => s.url === url);
+}
+
+function destroyScanHls() {
+  if (scanHls) { scanHls.destroy(); scanHls = null; }
+}
+
+function stopScanAudio() {
+  scanAudio.pause();
+  destroyScanHls();
+  scanAudio.removeAttribute('src');
+}
+
+function testCandidate(candidate) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      scanAudio.removeEventListener('playing', onPlaying);
+      scanAudio.removeEventListener('error', onError);
+      resolve(ok);
+    };
+    const onPlaying = () => finish(true);
+    const onError = () => finish(false);
+    const timer = setTimeout(() => finish(false), SCAN_TIMEOUT_MS);
+
+    scanAudio.addEventListener('playing', onPlaying);
+    scanAudio.addEventListener('error', onError);
+
+    destroyScanHls();
+    if (candidate.type === 'hls' && window.Hls && Hls.isSupported()) {
+      scanHls = new Hls();
+      scanHls.loadSource(candidate.url);
+      scanHls.attachMedia(scanAudio);
+      scanHls.on(Hls.Events.MANIFEST_PARSED, () => {
+        scanAudio.play().catch(() => finish(false));
+      });
+      scanHls.on(Hls.Events.ERROR, (evt, data) => {
+        if (data.fatal) finish(false);
+      });
+    } else {
+      scanAudio.src = candidate.url;
+      scanAudio.play().catch(() => finish(false));
+    }
+  });
+}
+
+function createScanRow(candidate) {
+  const row = document.createElement('div');
+  row.className = 'scan-row';
+  row.innerHTML =
+    `<div class="scan-row-info">` +
+    `<span class="scan-row-name">${escapeHtml(candidate.name)}</span>` +
+    `<span class="scan-row-sub">${escapeHtml(candidate.sub || '')}</span>` +
+    `</div>` +
+    `<span class="scan-row-status">Queued</span>` +
+    `<div class="scan-row-actions"></div>`;
+  const statusEl = row.querySelector('.scan-row-status');
+  const actionsEl = row.querySelector('.scan-row-actions');
+
+  return {
+    el: row,
+    setStatus(kind, text) {
+      row.className = 'scan-row scan-' + kind;
+      statusEl.textContent = text;
+      actionsEl.innerHTML = '';
+      if (kind === 'confirm') {
+        const skipBtn = document.createElement('button');
+        skipBtn.className = 'scan-action-skip';
+        skipBtn.textContent = 'Skip';
+        skipBtn.addEventListener('click', () => {
+          if (pendingDecisionResolve) { pendingDecisionResolve('skip'); pendingDecisionResolve = null; }
+        });
+        const addBtn = document.createElement('button');
+        addBtn.className = 'scan-action-add';
+        addBtn.textContent = 'Add';
+        addBtn.addEventListener('click', () => {
+          if (pendingDecisionResolve) { pendingDecisionResolve('add'); pendingDecisionResolve = null; }
+        });
+        actionsEl.appendChild(skipBtn);
+        actionsEl.appendChild(addBtn);
+      }
+    },
+  };
+}
+
+function waitForDecision() {
+  return new Promise((resolve) => { pendingDecisionResolve = resolve; });
+}
+
+function addStationFromScan(candidate) {
+  stations.push({ name: candidate.name, sub: candidate.sub || '', url: candidate.url, type: candidate.type });
+  saveStations();
+  renderStations();
+}
+
+function buildScanRows() {
+  scanList.innerHTML = '';
+  scanRows = new Map();
+  CANDIDATE_STATIONS.forEach((candidate) => {
+    const row = createScanRow(candidate);
+    scanRows.set(candidate.url, row);
+    scanList.appendChild(row.el);
+  });
+}
+
+async function runScan() {
+  scanRunning = true;
+  scanAbort = false;
+  scanActionBtn.textContent = 'Stop scan';
+  scanAutoApprove.disabled = true;
+  scanSummary.textContent = '';
+
+  const autoApprove = scanAutoApprove.checked;
+  let added = 0, failed = 0, skipped = 0, already = 0;
+
+  for (const candidate of CANDIDATE_STATIONS) {
+    if (scanAbort) break;
+    const row = scanRows.get(candidate.url);
+
+    if (stationExists(candidate.url)) {
+      row.setStatus('already', 'Already added');
+      already++;
+      continue;
+    }
+
+    row.setStatus('testing', 'Testing…');
+    const ok = await testCandidate(candidate);
+    if (scanAbort) { stopScanAudio(); break; }
+
+    if (!ok) {
+      row.setStatus('failed', 'No response');
+      failed++;
+      continue;
+    }
+
+    if (autoApprove) {
+      await sleep(SCAN_CONFIRM_MS);
+      if (scanAbort) { stopScanAudio(); break; }
+      addStationFromScan(candidate);
+      row.setStatus('added', 'Added');
+      added++;
+      stopScanAudio();
+    } else {
+      row.setStatus('confirm', 'Works — add it?');
+      const decision = await waitForDecision();
+      stopScanAudio();
+      if (decision === 'add') {
+        addStationFromScan(candidate);
+        row.setStatus('added', 'Added');
+        added++;
+      } else {
+        row.setStatus('skipped', 'Skipped');
+        skipped++;
+      }
+    }
+  }
+
+  stopScanAudio();
+  scanRunning = false;
+  scanActionBtn.textContent = 'Start scan';
+  scanAutoApprove.disabled = false;
+
+  const parts = [];
+  if (added) parts.push(`${added} added`);
+  if (failed) parts.push(`${failed} didn't respond`);
+  if (skipped) parts.push(`${skipped} skipped`);
+  if (already) parts.push(`${already} already had`);
+  scanSummary.textContent = scanAbort ? 'Scan stopped.' : (parts.length ? parts.join(' · ') : 'Nothing new found.');
+}
+
+function abortScan() {
+  scanAbort = true;
+  if (pendingDecisionResolve) { pendingDecisionResolve('skip'); pendingDecisionResolve = null; }
+  stopScanAudio();
+}
+
+function openScanModal() {
+  if (isPlaying) pause();
+  buildScanRows();
+  scanSummary.textContent = '';
+  scanActionBtn.textContent = 'Start scan';
+  scanAutoApprove.disabled = false;
+  scanModalBackdrop.classList.add('open');
+}
+
+function closeScanModal() {
+  abortScan();
+  scanModalBackdrop.classList.remove('open');
+}
+
+scanStationsLink.addEventListener('click', openScanModal);
+scanCloseBtn.addEventListener('click', closeScanModal);
+scanModalBackdrop.addEventListener('click', (evt) => {
+  if (evt.target === scanModalBackdrop) closeScanModal();
+});
+scanActionBtn.addEventListener('click', () => {
+  if (scanRunning) abortScan(); else runScan();
 });
 
 /* ---------- Keep screen on toggle ---------- */

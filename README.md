@@ -13,10 +13,16 @@ browser) and is auto-deployed to GitHub Pages by
 
 - `www/index.html` — the whole UI/player. Vanilla JS, hls.js for HLS
   streams, a plain `<audio>` element for direct MP3/AAC streams. Ships
-  with **no stations built in** — tap "+ Add a station" (or the "+" tile)
+  with **no stations built in** — tap "+ Add manually" (or the "+" tile)
   to add your own (name, URL, HLS/MP3 auto-detected from the URL), stored
   in `localStorage` on the device. No rebuild needed to add/remove a
   station.
+  - "🔍 Scan for stations" tests a small built-in list of known Israeli
+    stream URLs live in the browser (plays each one briefly, real
+    verification, not a static list) and only offers to add the ones that
+    actually respond right now. Toggle "Auto-add stations that work" to
+    skip the per-station confirmation, or leave it off to listen to each
+    one yourself before adding it.
 - `www/hls.min.js` — vendored copy of hls.js 1.5.13 (no CDN dependency at
   runtime).
 - `android/` — the Capacitor-generated Android project, plus:
