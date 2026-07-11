@@ -22,9 +22,7 @@ browser) and is auto-deployed to GitHub Pages by
     not a static list) and only offers to add the ones that actually
     respond right now. Toggle "Auto-add stations that work" to skip the
     per-station confirmation, or leave it off to listen to each one
-    yourself before adding it. A few of the candidates are pattern-matched
-    guesses off the same CDN as a confirmed neighbor (not independently
-    verified) — harmless if wrong, they just show "No response".
+    yourself before adding it.
   - Manually adding a station also tests the URL before saving (same
     live-check as the scanner) and offers "Save anyway" if the test fails
     but you want to keep the URL regardless.
@@ -33,8 +31,11 @@ browser) and is auto-deployed to GitHub Pages by
     stream access to their own site's Origin/Referer (anti-hotlinking),
     which blocks *any* third-party page — this app included. There's no
     getting around that without a server-side relay, which is out of scope
-    for a single-file client app. The scanner exists to sort out which
-    stream URLs happen to allow this regardless.
+    for a single-file client app. The built-in `CANDIDATE_STATIONS` list
+    has been pruned down to just the handful that were actually confirmed
+    live end-to-end with `tools/station-scanner.html` (see below), rather
+    than kept full of plausible-looking guesses that just show "No
+    response" — re-run that tool periodically since streams rot over time.
   - If a stream fails outright, the test also tries following an HTTP
     redirect to wherever the URL actually resolves to and retries there
     (up to 4 hops) — this only works when the server sends CORS headers on
@@ -46,14 +47,6 @@ browser) and is auto-deployed to GitHub Pages by
     further. A dead/deprecated domain that never redirects at all (no
     CORS, no 3xx, just unreachable) can't be resolved this way — that's
     just a stale URL that needs replacing, not something to auto-detect.
-  - A handful of candidates come from a long-abandoned (~2014) community
-    Israeli-radio playlist project (`kodi-il/radio-il` /
-    `eliransapir/live-il` on GitHub) rather than official sources — mostly
-    plain HTTP, unverified. Testing them from this HTTPS-served app can
-    give a false "No response" if Chrome's mixed-content handling silently
-    blocks the http:// request before it even reaches the server; opening
-    `tools/station-scanner.html` via `file://` avoids that entirely, so
-    it's the more reliable place to test this batch specifically.
 - `www/hls.min.js` — vendored copy of hls.js 1.5.13 (no CDN dependency at
   runtime).
 - `android/` — the Capacitor-generated Android project, plus:
