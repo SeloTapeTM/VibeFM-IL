@@ -835,19 +835,11 @@ const CANDIDATE_STATIONS = [
   { name: 'כאן מורשת', sub: 'Kan Moreshet', url: 'https://radiocast-rr-d.vidnt.com/ipbc_IPBCmoreshetLAM', type: 'hls' },
   { name: 'כאן קול המוסיקה', sub: 'Kan Kol HaMusica', url: 'https://iba-s.vidnt.com/iba_radio-kanmusicaMRepeat/_definst_/smil:radio-kanmusicaM.smil/playlist.m3u8', type: 'hls' },
   // Sourced from a community-maintained (but long-abandoned, ~2014) Israeli
-  // radio playlist project (kodi-il/live-il on GitHub) - unverified and
-  // largely plain HTTP, not HTTPS. Chrome's mixed-content policy may block
-  // or silently fail these when tested from this HTTPS-served app even if
-  // the stream is actually still alive; tools/station-scanner.html opened
-  // via file:// isn't subject to that restriction and gives a truer test.
-  { name: '91FM', sub: "Lev HaMedina", url: 'http://213.8.143.168/91fmAudio', type: 'mp3' },
+  // radio playlist project (kodi-il/live-il on GitHub). Verified live by
+  // hand against the rest of that batch (91FM, 100FM, 103FM, 90FM, Reshet
+  // Dalet, Reka, alt Eco 99FM source) - this is the one that actually
+  // responded; the rest were removed as confirmed dead.
   { name: '96FM', sub: 'Kol Rega Radio', url: 'http://radio.96fm.co.il/96fm', type: 'mp3' },
-  { name: '100FM', sub: 'Radius', url: 'http://213.8.143.168:80/100fmAudio', type: 'mp3' },
-  { name: '103FM', sub: 'Non-Stop Radio', url: 'http://103fm-s.nsacdn.com/103fm_LiveRadioRepeat/_definst_/smil:LiveRadio.smil/manifest.m3u8', type: 'hls' },
-  { name: '90FM', sub: 'Ninety Radio', url: 'http://90fm.mediacast.co.il:8920', type: 'mp3' },
-  { name: "רשת ד'", sub: 'Reshet Dalet (Arabic)', url: 'http://s4ifl.castup.net:1935/990310135-123.flv/_definst_/playlist.m3u8', type: 'hls' },
-  { name: 'רק"ע', sub: 'Reka (foreign languages)', url: 'http://s4ifl.castup.net:1935/990310140-123.flv/_definst_/playlist.m3u8', type: 'hls' },
-  { name: 'אקו 99 (מקור חלופי)', sub: 'Eco 99FM (alt source)', url: 'http://103fm-s.nsacdn.com/103fm_Live99Repeat/_definst_/smil:Live99.smil/manifest.m3u8', type: 'hls' },
 ];
 
 const SCAN_TIMEOUT_MS = 15000;
