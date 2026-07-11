@@ -1,0 +1,12 @@
+{
+  "appId": "il.radio.israelradio",
+  "appName": "Israel Radio",
+  "webDir": "www",
+  "backgroundColor": "#0b0d12",
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

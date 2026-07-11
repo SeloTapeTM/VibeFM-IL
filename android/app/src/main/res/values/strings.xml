@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Israel Radio</string>
+    <string name="title_activity_main">Israel Radio</string>
+    <string name="package_name">il.radio.israelradio</string>
+    <string name="custom_url_scheme">il.radio.israelradio</string>
+</resources>

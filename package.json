@@ -1,0 +1,17 @@
+{
+  "name": "israel-radio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Israel Radio - lightweight streaming radio app for Android tablets/car head units",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "hls.js": "^1.5.13"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.1"
+  }
+}

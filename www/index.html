@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>רדיו ישראל - Israel Radio</title>
+<script src="hls.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --card: #161a22;
+    --card-active: #1f2733;
+    --accent: #3b82f6;
+    --accent2: #22c55e;
+    --text: #eef1f6;
+    --muted: #8a93a3;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+  #app {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+  }
+  /* Station grid - left/main */
+  #stations {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-auto-rows: 1fr;
+    gap: 10px;
+    padding: 14px;
+    overflow-y: auto;
+  }
+  .station-btn {
+    position: relative;
+    background: var(--card);
+    border: 2px solid transparent;
+    border-radius: 14px;
+    color: var(--text);
+    font-size: 1.05rem;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px;
+    cursor: pointer;
+    min-height: 90px;
+    transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .station-btn:active { transform: scale(0.96); }
+  .station-btn.active {
+    background: var(--card-active);
+    border-color: var(--accent);
+  }
+  .station-btn .freq {
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .station-btn.active .freq { color: #cfe0ff; }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent2);
+    display: none;
+  }
+  .station-btn.active .live-dot { display: inline-block; }
+  .station-remove {
+    position: absolute;
+    top: 4px; right: 6px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.35);
+    color: var(--muted);
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .station-remove:active { background: rgba(239,68,68,0.6); color: white; }
+  .station-btn.add-btn {
+    background: transparent;
+    border: 2px dashed #2b3441;
+    color: var(--muted);
+    font-size: 2rem;
+    font-weight: 400;
+  }
+  .station-btn.add-btn:active { border-color: var(--accent); color: var(--accent); }
+
+  /* Right control panel - built for landscape/car */
+  #panel {
+    width: 260px;
+    flex-shrink: 0;
+    background: #10141b;
+    border-left: 1px solid #232a36;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 18px 16px;
+  }
+  #nowplaying {
+    text-align: center;
+  }
+  #nowplaying .label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  #nowplaying .name {
+    font-size: 1.4rem;
+    font-weight: 700;
+    min-height: 1.6em;
+  }
+  #status {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-top: 4px;
+    min-height: 1.2em;
+  }
+  #playBtn {
+    width: 100%;
+    aspect-ratio: 1.6;
+    border-radius: 20px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    font-size: 1.3rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    margin: 16px 0;
+  }
+  #playBtn:active { filter: brightness(0.9); }
+  #playBtn.playing { background: #ef4444; }
+  #playBtn svg { width: 28px; height: 28px; }
+
+  #volumeRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  #volumeRow input[type=range] {
+    flex: 1;
+    height: 44px;
+    accent-color: var(--accent);
+  }
+  .vol-icon { color: var(--muted); font-size: 1.2rem; }
+
+  #screenRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .switch {
+    position: relative;
+    width: 44px; height: 26px;
+    flex-shrink: 0;
+  }
+  .switch input { display: none; }
+  .switch .track {
+    position: absolute; inset: 0;
+    background: #2b3441;
+    border-radius: 999px;
+    transition: background .15s ease;
+  }
+  .switch .thumb {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    transition: transform .15s ease;
+  }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track .thumb,
+  .switch input:checked ~ .thumb { transform: translateX(18px); }
+
+  #hint {
+    font-size: 0.7rem;
+    color: #4b5563;
+    text-align: center;
+    margin-top: 10px;
+    line-height: 1.4;
+  }
+
+  /* Portrait fallback notice */
+  #rotateNotice {
+    display: none;
+    position: fixed; inset: 0;
+    background: var(--bg);
+    color: var(--text);
+    z-index: 999;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 1.1rem;
+    padding: 20px;
+  }
+  @media (orientation: portrait) and (max-width: 700px) {
+    #rotateNotice { display: flex; }
+    #app { display: none; }
+  }
+
+  /* Add-station modal */
+  #addModalBackdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+  }
+  #addModalBackdrop.open { display: flex; }
+  #addModal {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 20px;
+    width: min(420px, 90vw);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  #addModal h2 {
+    margin: 0 0 14px;
+    font-size: 1.1rem;
+  }
+  #addModal label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin: 10px 0 4px;
+  }
+  #addModal input, #addModal select {
+    width: 100%;
+    background: #0d1117;
+    border: 1px solid #2b3441;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 0.95rem;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .modal-actions button {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #addCancelBtn { background: #2b3441; color: var(--text); }
+  #addSaveBtn { background: var(--accent); color: white; }
+  #addError {
+    color: #f87171;
+    font-size: 0.8rem;
+    min-height: 1.1em;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div id="rotateNotice">📱↔️ Rotate your device to landscape<br>for the best experience</div>
+
+<div id="app">
+  <div id="stations"></div>
+
+  <div id="panel">
+    <div id="nowplaying">
+      <div class="label">Now Playing</div>
+      <div class="name" id="stationName">Select a station</div>
+      <div id="status"></div>
+    </div>
+
+    <div>
+      <button id="playBtn">
+        <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <span id="playLabel">Play</span>
+      </button>
+      <div id="volumeRow">
+        <span class="vol-icon">🔈</span>
+        <input type="range" id="volume" min="0" max="100" value="85">
+        <span class="vol-icon">🔊</span>
+      </div>
+      <div id="screenRow">
+        <span>Keep screen on</span>
+        <label class="switch">
+          <input type="checkbox" id="keepScreenOn">
+          <span class="track"><span class="thumb"></span></span>
+        </label>
+      </div>
+    </div>
+
+    <div id="hint">No ads · Direct station streams<br>Tap a station, then Play</div>
+  </div>
+</div>
+
+<audio id="audio" preload="none"></audio>
+
+<div id="addModalBackdrop">
+  <div id="addModal">
+    <h2>Add station</h2>
+    <label for="addName">Station name</label>
+    <input type="text" id="addName" placeholder="e.g. 103FM">
+    <label for="addSub">Subtitle (optional)</label>
+    <input type="text" id="addSub" placeholder="e.g. Tel Aviv">
+    <label for="addUrl">Stream URL</label>
+    <input type="text" id="addUrl" placeholder="https://... .mp3 or .m3u8">
+    <label for="addType">Stream type</label>
+    <select id="addType">
+      <option value="auto">Auto-detect</option>
+      <option value="mp3">Direct (MP3/AAC)</option>
+      <option value="hls">HLS (.m3u8)</option>
+    </select>
+    <div id="addError"></div>
+    <div class="modal-actions">
+      <button id="addCancelBtn">Cancel</button>
+      <button id="addSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Built-in station streams. If one goes stale, swap the URL here.
+const STATIONS = [
+  { name: "גלגלצ", sub: "Galgalatz", freq: "91.8", url: "https://glzwizzlv.bynetcdn.com/glglz_mp3", type: "mp3" },
+  { name: "כאן ב'", sub: "Kan Bet", freq: "—", url: "https://kanlivep2event-i.akamaihd.net/hls/live/749624/749624/kanbet_mp3/chunklist.m3u8", type: "hls" },
+  { name: "כאן 88", sub: "Kan 88", freq: "88FM", url: "https://iba-s.vidnt.com/iba_radio-88fmMRepeat/_definst_/smil:radio-88fmM.smil/playlist.m3u8", type: "hls" },
+  { name: "רשת גימל", sub: "Reshet Gimmel", freq: "97.8", url: "https://radiocast-rr-d.vidnt.com/ipbc_IPBCgimmelLAM", type: "hls" },
+  { name: "106FM", sub: "Radio Haifa", freq: "106", url: "https://106fm.livecdn.biz:7075/", type: "mp3" },
+  { name: "אקו 99", sub: "Eco 99FM", freq: "99", url: "https://glzeco.bynetcdn.com/eco_mp3", type: "mp3" },
+];
+
+const CUSTOM_KEY = 'ir_custom_stations';
+
+function loadCustomStations() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveCustomStations(list) {
+  localStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
+}
+
+let customStations = loadCustomStations();
+
+function allStations() {
+  return STATIONS.concat(customStations);
+}
+
+const stationsEl = document.getElementById('stations');
+const audio = document.getElementById('audio');
+const playBtn = document.getElementById('playBtn');
+const playLabel = document.getElementById('playLabel');
+const stationNameEl = document.getElementById('stationName');
+const statusEl = document.getElementById('status');
+const volumeSlider = document.getElementById('volume');
+const keepScreenOnToggle = document.getElementById('keepScreenOn');
+
+const addModalBackdrop = document.getElementById('addModalBackdrop');
+const addName = document.getElementById('addName');
+const addSub = document.getElementById('addSub');
+const addUrl = document.getElementById('addUrl');
+const addType = document.getElementById('addType');
+const addError = document.getElementById('addError');
+const addCancelBtn = document.getElementById('addCancelBtn');
+const addSaveBtn = document.getElementById('addSaveBtn');
+
+let currentIndex = null;
+let hls = null;
+let isPlaying = false;
+
+audio.volume = volumeSlider.value / 100;
+
+function renderStations() {
+  const list = allStations();
+  stationsEl.innerHTML = '';
+  list.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'station-btn';
+    btn.innerHTML = `<span>${s.name}</span><span class="freq">${s.sub} · ${s.freq}</span><span class="live-dot"></span>`;
+    btn.addEventListener('click', () => selectStation(i, true));
+
+    if (i >= STATIONS.length) {
+      const removeBtn = document.createElement('span');
+      removeBtn.className = 'station-remove';
+      removeBtn.textContent = '×';
+      removeBtn.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        removeCustomStation(i);
+      });
+      btn.appendChild(removeBtn);
+    }
+    stationsEl.appendChild(btn);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'station-btn add-btn';
+  addBtn.innerHTML = '<span>+</span>';
+  addBtn.addEventListener('click', openAddModal);
+  stationsEl.appendChild(addBtn);
+}
+
+function removeCustomStation(index) {
+  const wasCurrent = currentIndex === index;
+  customStations.splice(index - STATIONS.length, 1);
+  saveCustomStations(customStations);
+  if (wasCurrent) {
+    pause();
+    currentIndex = null;
+    stationNameEl.textContent = 'Select a station';
+    statusEl.textContent = '';
+  } else if (currentIndex !== null && currentIndex > index) {
+    currentIndex -= 1;
+  }
+  renderStations();
+  setActiveButton(currentIndex);
+}
+
+function setActiveButton(index) {
+  [...stationsEl.children].forEach((btn, i) => {
+    btn.classList.toggle('active', i === index);
+  });
+}
+
+function destroyHls() {
+  if (hls) { hls.destroy(); hls = null; }
+}
+
+function detectType(url, requested) {
+  if (requested && requested !== 'auto') return requested;
+  return /\.m3u8(\?|$)/i.test(url) ? 'hls' : 'mp3';
+}
+
+function selectStation(index, autoplay) {
+  currentIndex = index;
+  const s = allStations()[index];
+  stationNameEl.textContent = `${s.name} · ${s.sub}`;
+  statusEl.textContent = 'Loading…';
+  setActiveButton(index);
+  destroyHls();
+
+  if (s.type === 'hls' && window.Hls && Hls.isSupported()) {
+    hls = new Hls();
+    hls.loadSource(s.url);
+    hls.attachMedia(audio);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      if (autoplay) play();
+    });
+    hls.on(Hls.Events.ERROR, (evt, data) => {
+      if (data.fatal) statusEl.textContent = 'Stream error — try another station';
+    });
+  } else {
+    audio.src = s.url;
+    if (autoplay) play();
+  }
+
+  notifyNative();
+}
+
+function play() {
+  audio.play().then(() => {
+    isPlaying = true;
+    playBtn.classList.add('playing');
+    playLabel.textContent = 'Pause';
+    statusEl.textContent = '● Live';
+    notifyNative();
+  }).catch(() => {
+    statusEl.textContent = 'Tap Play to start';
+  });
+}
+
+function pause() {
+  audio.pause();
+  isPlaying = false;
+  playBtn.classList.remove('playing');
+  playLabel.textContent = 'Play';
+  statusEl.textContent = 'Paused';
+  notifyNative();
+}
+
+function nextStation() {
+  const list = allStations();
+  if (list.length === 0) return;
+  const next = currentIndex === null ? 0 : (currentIndex + 1) % list.length;
+  selectStation(next, true);
+}
+
+function prevStation() {
+  const list = allStations();
+  if (list.length === 0) return;
+  const prev = currentIndex === null ? 0 : (currentIndex - 1 + list.length) % list.length;
+  selectStation(prev, true);
+}
+
+playBtn.addEventListener('click', () => {
+  if (currentIndex === null) {
+    selectStation(0, true);
+    return;
+  }
+  if (isPlaying) pause(); else play();
+});
+
+volumeSlider.addEventListener('input', () => {
+  audio.volume = volumeSlider.value / 100;
+});
+
+audio.addEventListener('waiting', () => { if (isPlaying) statusEl.textContent = 'Buffering…'; });
+audio.addEventListener('playing', () => { statusEl.textContent = '● Live'; });
+audio.addEventListener('error', () => { statusEl.textContent = 'Stream error — try another station'; });
+
+// --- Add-station modal ---
+function openAddModal() {
+  addName.value = '';
+  addSub.value = '';
+  addUrl.value = '';
+  addType.value = 'auto';
+  addError.textContent = '';
+  addModalBackdrop.classList.add('open');
+  addName.focus();
+}
+
+function closeAddModal() {
+  addModalBackdrop.classList.remove('open');
+}
+
+addCancelBtn.addEventListener('click', closeAddModal);
+addModalBackdrop.addEventListener('click', (evt) => {
+  if (evt.target === addModalBackdrop) closeAddModal();
+});
+
+addSaveBtn.addEventListener('click', () => {
+  const name = addName.value.trim();
+  const url = addUrl.value.trim();
+  if (!name || !url) {
+    addError.textContent = 'Name and URL are required.';
+    return;
+  }
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (e) {
+    addError.textContent = 'That doesn\'t look like a valid URL.';
+    return;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    addError.textContent = 'URL must start with http:// or https://';
+    return;
+  }
+  const station = {
+    name,
+    sub: addSub.value.trim() || 'Custom',
+    freq: '—',
+    url,
+    type: detectType(url, addType.value),
+  };
+  customStations.push(station);
+  saveCustomStations(customStations);
+  renderStations();
+  closeAddModal();
+});
+
+// --- Keep screen on toggle ---
+const KEEP_SCREEN_KEY = 'ir_keep_screen_on';
+keepScreenOnToggle.checked = localStorage.getItem(KEEP_SCREEN_KEY) === '1';
+applyKeepScreenOn(keepScreenOnToggle.checked);
+
+keepScreenOnToggle.addEventListener('change', () => {
+  localStorage.setItem(KEEP_SCREEN_KEY, keepScreenOnToggle.checked ? '1' : '0');
+  applyKeepScreenOn(keepScreenOnToggle.checked);
+});
+
+function applyKeepScreenOn(enabled) {
+  if (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.RadioMedia) {
+    Capacitor.Plugins.RadioMedia.setKeepScreenOn({ enabled }).catch(() => {});
+  }
+}
+
+// --- Native bridge: MediaSession / foreground service / hardware buttons ---
+function notifyNative() {
+  if (!(window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.RadioMedia)) return;
+  const s = currentIndex === null ? null : allStations()[currentIndex];
+  Capacitor.Plugins.RadioMedia.updateState({
+    title: s ? s.name : 'Israel Radio',
+    subtitle: s ? s.sub : '',
+    playing: isPlaying,
+  }).catch(() => {});
+}
+
+if (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.RadioMedia) {
+  Capacitor.Plugins.RadioMedia.addListener('mediaButton', (data) => {
+    switch (data && data.action) {
+      case 'play': play(); break;
+      case 'pause': pause(); break;
+      case 'toggle':
+        if (currentIndex === null) selectStation(0, true);
+        else if (isPlaying) pause(); else play();
+        break;
+      case 'next': nextStation(); break;
+      case 'previous': prevStation(); break;
+      case 'stop': pause(); break;
+    }
+  });
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') applyKeepScreenOn(keepScreenOnToggle.checked);
+});
+
+renderStations();
+</script>
+
+</body>
+</html>
