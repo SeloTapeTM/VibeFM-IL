@@ -7,10 +7,11 @@ and car head units. No ads, no analytics, no accounts.
 ## What's in here
 
 - `www/index.html` — the whole UI/player. Vanilla JS, hls.js for HLS
-  streams, a plain `<audio>` element for direct MP3/AAC streams. Stations
-  are hardcoded in `STATIONS`, plus a "+" tile to add your own streams at
-  runtime (name, URL, HLS/MP3), stored in `localStorage` — no rebuild
-  needed to add a station.
+  streams, a plain `<audio>` element for direct MP3/AAC streams. Ships
+  with **no stations built in** — tap "+ Add a station" (or the "+" tile)
+  to add your own (name, URL, HLS/MP3 auto-detected from the URL), stored
+  in `localStorage` on the device. No rebuild needed to add/remove a
+  station.
 - `www/hls.min.js` — vendored copy of hls.js 1.5.13 (no CDN dependency at
   runtime).
 - `android/` — the Capacitor-generated Android project, plus:
@@ -171,9 +172,7 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 - **Keep screen on:** the toggle in the panel is off by default and calls
   `RadioMedia.setKeepScreenOn()`, which just sets/clears
   `FLAG_KEEP_SCREEN_ON` on the activity window — it does not force it on.
-- **Custom stations:** added stations are stored in `localStorage` inside
-  the WebView, so they persist across app restarts but are local to the
-  device (not synced anywhere).
-- **Stream URLs go stale:** if a built-in station stops working, edit the
-  `STATIONS` array at the top of `www/index.html`'s `<script>` block and
-  re-run `npx cap sync android`.
+- **Stations:** there are no built-in stations — add your own from the
+  "+" tile or the "+ Add a station" link. They're stored in `localStorage`
+  inside the WebView, so they persist across app restarts but are local to
+  the device (not synced anywhere, and lost if app data is cleared).

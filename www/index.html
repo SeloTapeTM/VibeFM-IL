@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="he">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>רדיו ישראל - Israel Radio</title>
+<title>Israel Radio</title>
 <script src="hls.min.js"></script>
 <style>
   :root {
@@ -12,6 +12,7 @@
     --card-active: #1f2733;
     --accent: #3b82f6;
     --accent2: #22c55e;
+    --danger: #ef4444;
     --text: #eef1f6;
     --muted: #8a93a3;
   }
@@ -28,7 +29,8 @@
     height: 100vh;
     width: 100vw;
   }
-  /* Station grid - left/main */
+
+  /* ---------- Station grid ---------- */
   #stations {
     flex: 1;
     display: grid;
@@ -37,6 +39,7 @@
     gap: 10px;
     padding: 14px;
     overflow-y: auto;
+    align-content: start;
   }
   .station-btn {
     position: relative;
@@ -61,12 +64,12 @@
     background: var(--card-active);
     border-color: var(--accent);
   }
-  .station-btn .freq {
+  .station-btn .sub {
     font-size: 0.78rem;
     color: var(--muted);
     font-weight: 400;
   }
-  .station-btn.active .freq { color: #cfe0ff; }
+  .station-btn.active .sub { color: #cfe0ff; }
   .live-dot {
     width: 8px; height: 8px; border-radius: 50%;
     background: var(--accent2);
@@ -76,27 +79,41 @@
   .station-remove {
     position: absolute;
     top: 4px; right: 6px;
-    width: 22px; height: 22px;
+    width: 24px; height: 24px;
     border-radius: 50%;
     background: rgba(0,0,0,0.35);
     color: var(--muted);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     display: flex;
     align-items: center;
     justify-content: center;
     line-height: 1;
   }
-  .station-remove:active { background: rgba(239,68,68,0.6); color: white; }
+  .station-remove:active { background: var(--danger); color: white; }
+
   .station-btn.add-btn {
     background: transparent;
     border: 2px dashed #2b3441;
     color: var(--muted);
-    font-size: 2rem;
-    font-weight: 400;
   }
+  .station-btn.add-btn .plus { font-size: 2rem; font-weight: 400; line-height: 1; }
+  .station-btn.add-btn .add-label { font-size: 0.8rem; margin-top: 2px; }
   .station-btn.add-btn:active { border-color: var(--accent); color: var(--accent); }
 
-  /* Right control panel - built for landscape/car */
+  /* Empty state: make the add tile the whole grid and give it room to speak */
+  #stations.empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #stations.empty .station-btn.add-btn {
+    width: min(320px, 80vw);
+    min-height: 160px;
+  }
+  #stations.empty .plus { font-size: 2.6rem; }
+  #stations.empty .add-label { font-size: 0.95rem; max-width: 220px; text-align: center; line-height: 1.4; }
+
+  /* ---------- Right control panel ---------- */
   #panel {
     width: 260px;
     flex-shrink: 0;
@@ -107,9 +124,7 @@
     justify-content: space-between;
     padding: 18px 16px;
   }
-  #nowplaying {
-    text-align: center;
-  }
+  #nowplaying { text-align: center; }
   #nowplaying .label {
     font-size: 0.75rem;
     color: var(--muted);
@@ -121,6 +136,7 @@
     font-size: 1.4rem;
     font-weight: 700;
     min-height: 1.6em;
+    overflow-wrap: anywhere;
   }
   #status {
     font-size: 0.85rem;
@@ -144,15 +160,12 @@
     cursor: pointer;
     margin: 16px 0;
   }
-  #playBtn:active { filter: brightness(0.9); }
-  #playBtn.playing { background: #ef4444; }
+  #playBtn:disabled { opacity: 0.4; }
+  #playBtn:active:not(:disabled) { filter: brightness(0.9); }
+  #playBtn.playing { background: var(--danger); }
   #playBtn svg { width: 28px; height: 28px; }
 
-  #volumeRow {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+  #volumeRow { display: flex; align-items: center; gap: 10px; }
   #volumeRow input[type=range] {
     flex: 1;
     height: 44px;
@@ -168,11 +181,7 @@
     font-size: 0.85rem;
     color: var(--muted);
   }
-  .switch {
-    position: relative;
-    width: 44px; height: 26px;
-    flex-shrink: 0;
-  }
+  .switch { position: relative; width: 44px; height: 26px; flex-shrink: 0; }
   .switch input { display: none; }
   .switch .track {
     position: absolute; inset: 0;
@@ -189,18 +198,19 @@
     transition: transform .15s ease;
   }
   .switch input:checked + .track { background: var(--accent); }
-  .switch input:checked + .track .thumb,
-  .switch input:checked ~ .thumb { transform: translateX(18px); }
+  .switch input:checked + .track .thumb { transform: translateX(18px); }
 
-  #hint {
-    font-size: 0.7rem;
-    color: #4b5563;
+  #addStationLink {
+    display: block;
     text-align: center;
-    margin-top: 10px;
-    line-height: 1.4;
+    margin-top: 14px;
+    font-size: 0.85rem;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 6px 0;
   }
 
-  /* Portrait fallback notice */
+  /* ---------- Portrait fallback notice ---------- */
   #rotateNotice {
     display: none;
     position: fixed; inset: 0;
@@ -218,7 +228,7 @@
     #app { display: none; }
   }
 
-  /* Add-station modal */
+  /* ---------- Add-station modal ---------- */
   #addModalBackdrop {
     display: none;
     position: fixed; inset: 0;
@@ -236,10 +246,7 @@
     max-height: 90vh;
     overflow-y: auto;
   }
-  #addModal h2 {
-    margin: 0 0 14px;
-    font-size: 1.1rem;
-  }
+  #addModal h2 { margin: 0 0 14px; font-size: 1.1rem; }
   #addModal label {
     display: block;
     font-size: 0.75rem;
@@ -255,11 +262,7 @@
     padding: 10px;
     font-size: 0.95rem;
   }
-  .modal-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 18px;
-  }
+  .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
   .modal-actions button {
     flex: 1;
     padding: 12px;
@@ -272,7 +275,7 @@
   #addCancelBtn { background: #2b3441; color: var(--text); }
   #addSaveBtn { background: var(--accent); color: white; }
   #addError {
-    color: #f87171;
+    color: var(--danger);
     font-size: 0.8rem;
     min-height: 1.1em;
     margin-top: 8px;
@@ -289,12 +292,12 @@
   <div id="panel">
     <div id="nowplaying">
       <div class="label">Now Playing</div>
-      <div class="name" id="stationName">Select a station</div>
+      <div class="name" id="stationName">No stations yet</div>
       <div id="status"></div>
     </div>
 
     <div>
-      <button id="playBtn">
+      <button id="playBtn" disabled>
         <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         <span id="playLabel">Play</span>
       </button>
@@ -310,9 +313,8 @@
           <span class="track"><span class="thumb"></span></span>
         </label>
       </div>
+      <div id="addStationLink">+ Add a station</div>
     </div>
-
-    <div id="hint">No ads · Direct station streams<br>Tap a station, then Play</div>
   </div>
 </div>
 
@@ -322,9 +324,9 @@
   <div id="addModal">
     <h2>Add station</h2>
     <label for="addName">Station name</label>
-    <input type="text" id="addName" placeholder="e.g. 103FM">
+    <input type="text" id="addName" placeholder="e.g. Galgalatz">
     <label for="addSub">Subtitle (optional)</label>
-    <input type="text" id="addSub" placeholder="e.g. Tel Aviv">
+    <input type="text" id="addSub" placeholder="e.g. 91.8 FM">
     <label for="addUrl">Stream URL</label>
     <input type="text" id="addUrl" placeholder="https://... .mp3 or .m3u8">
     <label for="addType">Stream type</label>
@@ -342,36 +344,10 @@
 </div>
 
 <script>
-// Built-in station streams. If one goes stale, swap the URL here.
-const STATIONS = [
-  { name: "גלגלצ", sub: "Galgalatz", freq: "91.8", url: "https://glzwizzlv.bynetcdn.com/glglz_mp3", type: "mp3" },
-  { name: "כאן ב'", sub: "Kan Bet", freq: "—", url: "https://kanlivep2event-i.akamaihd.net/hls/live/749624/749624/kanbet_mp3/chunklist.m3u8", type: "hls" },
-  { name: "כאן 88", sub: "Kan 88", freq: "88FM", url: "https://iba-s.vidnt.com/iba_radio-88fmMRepeat/_definst_/smil:radio-88fmM.smil/playlist.m3u8", type: "hls" },
-  { name: "רשת גימל", sub: "Reshet Gimmel", freq: "97.8", url: "https://radiocast-rr-d.vidnt.com/ipbc_IPBCgimmelLAM", type: "hls" },
-  { name: "106FM", sub: "Radio Haifa", freq: "106", url: "https://106fm.livecdn.biz:7075/", type: "mp3" },
-  { name: "אקו 99", sub: "Eco 99FM", freq: "99", url: "https://glzeco.bynetcdn.com/eco_mp3", type: "mp3" },
-];
+'use strict';
 
-const CUSTOM_KEY = 'ir_custom_stations';
-
-function loadCustomStations() {
-  try {
-    const raw = localStorage.getItem(CUSTOM_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function saveCustomStations(list) {
-  localStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
-}
-
-let customStations = loadCustomStations();
-
-function allStations() {
-  return STATIONS.concat(customStations);
-}
+const STORAGE_KEY = 'ir_stations';
+const KEEP_SCREEN_KEY = 'ir_keep_screen_on';
 
 const stationsEl = document.getElementById('stations');
 const audio = document.getElementById('audio');
@@ -381,6 +357,7 @@ const stationNameEl = document.getElementById('stationName');
 const statusEl = document.getElementById('status');
 const volumeSlider = document.getElementById('volume');
 const keepScreenOnToggle = document.getElementById('keepScreenOn');
+const addStationLink = document.getElementById('addStationLink');
 
 const addModalBackdrop = document.getElementById('addModalBackdrop');
 const addName = document.getElementById('addName');
@@ -391,59 +368,71 @@ const addError = document.getElementById('addError');
 const addCancelBtn = document.getElementById('addCancelBtn');
 const addSaveBtn = document.getElementById('addSaveBtn');
 
+let stations = loadStations();
 let currentIndex = null;
 let hls = null;
 let isPlaying = false;
 
 audio.volume = volumeSlider.value / 100;
 
+function loadStations() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveStations() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stations));
+}
+
 function renderStations() {
-  const list = allStations();
   stationsEl.innerHTML = '';
-  list.forEach((s, i) => {
+  stationsEl.classList.toggle('empty', stations.length === 0);
+
+  stations.forEach((s, i) => {
     const btn = document.createElement('button');
     btn.className = 'station-btn';
-    btn.innerHTML = `<span>${s.name}</span><span class="freq">${s.sub} · ${s.freq}</span><span class="live-dot"></span>`;
+    btn.innerHTML =
+      `<span>${escapeHtml(s.name)}</span>` +
+      `<span class="sub">${escapeHtml(s.sub || '')}</span>` +
+      `<span class="live-dot"></span>`;
     btn.addEventListener('click', () => selectStation(i, true));
 
-    if (i >= STATIONS.length) {
-      const removeBtn = document.createElement('span');
-      removeBtn.className = 'station-remove';
-      removeBtn.textContent = '×';
-      removeBtn.addEventListener('click', (evt) => {
-        evt.stopPropagation();
-        removeCustomStation(i);
-      });
-      btn.appendChild(removeBtn);
-    }
+    const removeBtn = document.createElement('span');
+    removeBtn.className = 'station-remove';
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', (evt) => {
+      evt.stopPropagation();
+      removeStation(i);
+    });
+    btn.appendChild(removeBtn);
+
     stationsEl.appendChild(btn);
   });
 
   const addBtn = document.createElement('button');
   addBtn.className = 'station-btn add-btn';
-  addBtn.innerHTML = '<span>+</span>';
+  addBtn.innerHTML = stations.length === 0
+    ? '<span class="plus">+</span><span class="add-label">Add your first station</span>'
+    : '<span class="plus">+</span>';
   addBtn.addEventListener('click', openAddModal);
   stationsEl.appendChild(addBtn);
+
+  playBtn.disabled = stations.length === 0;
 }
 
-function removeCustomStation(index) {
-  const wasCurrent = currentIndex === index;
-  customStations.splice(index - STATIONS.length, 1);
-  saveCustomStations(customStations);
-  if (wasCurrent) {
-    pause();
-    currentIndex = null;
-    stationNameEl.textContent = 'Select a station';
-    statusEl.textContent = '';
-  } else if (currentIndex !== null && currentIndex > index) {
-    currentIndex -= 1;
-  }
-  renderStations();
-  setActiveButton(currentIndex);
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 function setActiveButton(index) {
-  [...stationsEl.children].forEach((btn, i) => {
+  [...stationsEl.querySelectorAll('.station-btn:not(.add-btn)')].forEach((btn, i) => {
     btn.classList.toggle('active', i === index);
   });
 }
@@ -459,8 +448,8 @@ function detectType(url, requested) {
 
 function selectStation(index, autoplay) {
   currentIndex = index;
-  const s = allStations()[index];
-  stationNameEl.textContent = `${s.name} · ${s.sub}`;
+  const s = stations[index];
+  stationNameEl.textContent = s.sub ? `${s.name} · ${s.sub}` : s.name;
   statusEl.textContent = 'Loading…';
   setActiveButton(index);
   destroyHls();
@@ -469,9 +458,7 @@ function selectStation(index, autoplay) {
     hls = new Hls();
     hls.loadSource(s.url);
     hls.attachMedia(audio);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      if (autoplay) play();
-    });
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { if (autoplay) play(); });
     hls.on(Hls.Events.ERROR, (evt, data) => {
       if (data.fatal) statusEl.textContent = 'Stream error — try another station';
     });
@@ -484,6 +471,7 @@ function selectStation(index, autoplay) {
 }
 
 function play() {
+  if (currentIndex === null) return;
   audio.play().then(() => {
     isPlaying = true;
     playBtn.classList.add('playing');
@@ -504,25 +492,41 @@ function pause() {
   notifyNative();
 }
 
+function removeStation(index) {
+  const wasCurrent = currentIndex === index;
+  stations.splice(index, 1);
+  saveStations();
+
+  if (wasCurrent) {
+    pause();
+    destroyHls();
+    audio.removeAttribute('src');
+    currentIndex = null;
+    stationNameEl.textContent = stations.length ? 'Select a station' : 'No stations yet';
+    statusEl.textContent = '';
+  } else if (currentIndex !== null && currentIndex > index) {
+    currentIndex -= 1;
+  }
+
+  renderStations();
+  setActiveButton(currentIndex);
+}
+
 function nextStation() {
-  const list = allStations();
-  if (list.length === 0) return;
-  const next = currentIndex === null ? 0 : (currentIndex + 1) % list.length;
+  if (stations.length === 0) return;
+  const next = currentIndex === null ? 0 : (currentIndex + 1) % stations.length;
   selectStation(next, true);
 }
 
 function prevStation() {
-  const list = allStations();
-  if (list.length === 0) return;
-  const prev = currentIndex === null ? 0 : (currentIndex - 1 + list.length) % list.length;
+  if (stations.length === 0) return;
+  const prev = currentIndex === null ? 0 : (currentIndex - 1 + stations.length) % stations.length;
   selectStation(prev, true);
 }
 
 playBtn.addEventListener('click', () => {
-  if (currentIndex === null) {
-    selectStation(0, true);
-    return;
-  }
+  if (stations.length === 0) return;
+  if (currentIndex === null) { selectStation(0, true); return; }
   if (isPlaying) pause(); else play();
 });
 
@@ -534,7 +538,7 @@ audio.addEventListener('waiting', () => { if (isPlaying) statusEl.textContent = 
 audio.addEventListener('playing', () => { statusEl.textContent = '● Live'; });
 audio.addEventListener('error', () => { statusEl.textContent = 'Stream error — try another station'; });
 
-// --- Add-station modal ---
+/* ---------- Add-station modal ---------- */
 function openAddModal() {
   addName.value = '';
   addSub.value = '';
@@ -549,6 +553,7 @@ function closeAddModal() {
   addModalBackdrop.classList.remove('open');
 }
 
+addStationLink.addEventListener('click', openAddModal);
 addCancelBtn.addEventListener('click', closeAddModal);
 addModalBackdrop.addEventListener('click', (evt) => {
   if (evt.target === addModalBackdrop) closeAddModal();
@@ -565,28 +570,29 @@ addSaveBtn.addEventListener('click', () => {
   try {
     parsed = new URL(url);
   } catch (e) {
-    addError.textContent = 'That doesn\'t look like a valid URL.';
+    addError.textContent = "That doesn't look like a valid URL.";
     return;
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     addError.textContent = 'URL must start with http:// or https://';
     return;
   }
-  const station = {
+
+  const wasEmpty = stations.length === 0;
+  stations.push({
     name,
-    sub: addSub.value.trim() || 'Custom',
-    freq: '—',
+    sub: addSub.value.trim(),
     url,
     type: detectType(url, addType.value),
-  };
-  customStations.push(station);
-  saveCustomStations(customStations);
+  });
+  saveStations();
   renderStations();
   closeAddModal();
+
+  if (wasEmpty) selectStation(0, true);
 });
 
-// --- Keep screen on toggle ---
-const KEEP_SCREEN_KEY = 'ir_keep_screen_on';
+/* ---------- Keep screen on toggle ---------- */
 keepScreenOnToggle.checked = localStorage.getItem(KEEP_SCREEN_KEY) === '1';
 applyKeepScreenOn(keepScreenOnToggle.checked);
 
@@ -601,13 +607,13 @@ function applyKeepScreenOn(enabled) {
   }
 }
 
-// --- Native bridge: MediaSession / foreground service / hardware buttons ---
+/* ---------- Native bridge: MediaSession / foreground service / hardware buttons ---------- */
 function notifyNative() {
   if (!(window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.RadioMedia)) return;
-  const s = currentIndex === null ? null : allStations()[currentIndex];
+  const s = currentIndex === null ? null : stations[currentIndex];
   Capacitor.Plugins.RadioMedia.updateState({
     title: s ? s.name : 'Israel Radio',
-    subtitle: s ? s.sub : '',
+    subtitle: s ? (s.sub || '') : '',
     playing: isPlaying,
   }).catch(() => {});
 }
