@@ -54,6 +54,17 @@ browser) and is auto-deployed to GitHub Pages by
     streams (built-in or user-added) aren't HTTPS.
   - A simple generated placeholder launcher icon (radio/antenna glyph on
     the app's accent blue).
+- `tools/station-scanner.html` — a standalone maintainer utility, **not**
+  part of the app and not linked from it. Open it directly in a browser
+  (double-click, or `file://` path) with a real internet connection: it
+  fetches Israel-tagged stations from the community-run
+  [Radio-Browser](https://www.radio-browser.info/) database (or accepts a
+  pasted JSON list instead), tests each one live with several running
+  concurrently, and exports the ones that actually work as JSON — paste
+  that back to update `CANDIDATE_STATIONS` in `www/index.html` with
+  verified URLs instead of guesses. See "In practice, expect most stream
+  URLs to fail..." below for why a lot of technically-live stations still
+  won't pass.
 
 No CI, no test framework, no state-management library — just the Capacitor
 CLI and Gradle, per the "one person can maintain this" brief.

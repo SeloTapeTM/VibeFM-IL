@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Israel Radio - Station Scanner (utility)</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --card: #161a22;
+    --accent: #3b82f6;
+    --ok: #22c55e;
+    --fail: #ef4444;
+    --text: #eef1f6;
+    --muted: #8a93a3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    padding: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 1.3rem; margin-bottom: 4px; }
+  .note {
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin-bottom: 20px;
+  }
+  section {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  section h2 { font-size: 1rem; margin: 0 0 12px; }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.secondary { background: #2b3441; }
+  label { font-size: 0.85rem; color: var(--muted); margin-inline-end: 12px; }
+  input[type=number] {
+    width: 70px;
+    background: #0d1117;
+    border: 1px solid #2b3441;
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 0.85rem;
+  }
+  #fetchStatus, #scanProgress {
+    display: block;
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; font-size: 0.85rem; color: var(--accent); }
+  textarea {
+    width: 100%;
+    background: #0d1117;
+    border: 1px solid #2b3441;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 0.8rem;
+    margin-top: 10px;
+    resize: vertical;
+  }
+  #pasteInput { height: 100px; }
+  #exportOutput { height: 220px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td {
+    text-align: start;
+    padding: 6px 8px;
+    border-bottom: 1px solid #232a36;
+  }
+  th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+  .url-cell { color: var(--muted); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status-cell.ok { color: var(--ok); font-weight: 600; }
+  .status-cell.fail { color: var(--muted); }
+  .status-cell.testing { color: var(--accent); }
+  #resultsWrap { max-height: 480px; overflow-y: auto; margin-top: 12px; }
+  .controls-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<h1>Israel Radio - Station Scanner (utility)</h1>
+<p class="note">
+  Standalone maintainer tool, not part of the app itself and not linked from
+  it - safe to ignore or delete. Fetches Israel-tagged stations from the
+  community-run <a href="https://www.radio-browser.info/" style="color:var(--accent)">Radio-Browser</a>
+  database, tests each one live in your browser with your real connection,
+  and lets you export just the working ones as JSON to hand back for the
+  app's built-in candidate list.
+</p>
+
+<section id="fetchSection">
+  <h2>1. Get candidates</h2>
+  <div class="controls-row">
+    <label>How many to fetch (most popular first): <input type="number" id="limitInput" value="150" min="10" max="500"></label>
+    <button id="fetchBtn">Fetch Israeli stations from Radio-Browser</button>
+  </div>
+  <span id="fetchStatus"></span>
+  <details>
+    <summary>...or paste your own candidate list instead (JSON array)</summary>
+    <textarea id="pasteInput" placeholder='[{"name":"Station name","url":"https://example.com/stream.mp3","type":"mp3"}]'></textarea>
+    <button id="pasteLoadBtn" class="secondary" style="margin-top:8px;">Load pasted list</button>
+  </details>
+</section>
+
+<section id="scanSection" style="display:none;">
+  <h2>2. Scan</h2>
+  <div class="controls-row">
+    <button id="startScanBtn">Start scan</button>
+    <button id="stopScanBtn" class="secondary" style="display:none;">Stop &amp; export what we have</button>
+    <label>Concurrency: <input type="number" id="concurrencyInput" value="6" min="1" max="20"></label>
+  </div>
+  <span id="scanProgress"></span>
+  <div id="resultsWrap">
+    <table>
+      <thead><tr><th>Name</th><th>URL</th><th>Type</th><th>Status</th></tr></thead>
+      <tbody id="resultsBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="exportSection" style="display:none;">
+  <h2>3. Export working stations</h2>
+  <div class="controls-row">
+    <button id="copyBtn">Copy JSON to clipboard</button>
+    <button id="downloadBtn" class="secondary">Download working-stations.json</button>
+  </div>
+  <textarea id="exportOutput" readonly></textarea>
+</section>
+
+<script>
+'use strict';
+
+const API_HOSTS = [
+  'https://de1.api.radio-browser.info',
+  'https://de2.api.radio-browser.info',
+  'https://at1.api.radio-browser.info',
+];
+const TEST_TIMEOUT_MS = 9000;
+
+const fetchBtn = document.getElementById('fetchBtn');
+const limitInput = document.getElementById('limitInput');
+const fetchStatus = document.getElementById('fetchStatus');
+const pasteInput = document.getElementById('pasteInput');
+const pasteLoadBtn = document.getElementById('pasteLoadBtn');
+
+const scanSection = document.getElementById('scanSection');
+const startScanBtn = document.getElementById('startScanBtn');
+const stopScanBtn = document.getElementById('stopScanBtn');
+const concurrencyInput = document.getElementById('concurrencyInput');
+const scanProgress = document.getElementById('scanProgress');
+const resultsBody = document.getElementById('resultsBody');
+
+const exportSection = document.getElementById('exportSection');
+const exportOutput = document.getElementById('exportOutput');
+const copyBtn = document.getElementById('copyBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+
+let candidates = [];
+let statusCells = new Map();
+let scanAborted = false;
+let scanRunning = false;
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function dedupeByUrl(list) {
+  const seen = new Set();
+  return list.filter((c) => {
+    if (!c.url || seen.has(c.url)) return false;
+    seen.add(c.url);
+    return true;
+  });
+}
+
+function mapRadioBrowserStation(raw) {
+  const url = raw.url_resolved || raw.url || '';
+  const type = raw.hls || /\.m3u8(\?|$)/i.test(url) ? 'hls' : 'mp3';
+  return {
+    name: (raw.name || 'Unnamed').trim(),
+    sub: raw.state || raw.tags || '',
+    url,
+    type,
+  };
+}
+
+async function fetchIsraeliStations(limit) {
+  const params = `hidebroken=true&order=clickcount&reverse=true&limit=${encodeURIComponent(limit)}`;
+  let lastErr;
+  for (const host of API_HOSTS) {
+    try {
+      const res = await fetch(`${host}/json/stations/bycountrycodeexact/IL?${params}`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+      throw new Error('Unexpected response shape');
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('All API hosts failed');
+}
+
+fetchBtn.addEventListener('click', async () => {
+  fetchBtn.disabled = true;
+  fetchStatus.textContent = 'Fetching…';
+  try {
+    const limit = Math.max(10, Math.min(500, parseInt(limitInput.value, 10) || 150));
+    const raw = await fetchIsraeliStations(limit);
+    candidates = dedupeByUrl(raw.map(mapRadioBrowserStation));
+    fetchStatus.textContent = `Fetched ${candidates.length} unique stations.`;
+    afterCandidatesLoaded();
+  } catch (e) {
+    fetchStatus.textContent =
+      'Fetch failed (' + e.message + '). Check your connection, or use the paste-your-own-list option below.';
+  }
+  fetchBtn.disabled = false;
+});
+
+pasteLoadBtn.addEventListener('click', () => {
+  try {
+    const parsed = JSON.parse(pasteInput.value);
+    if (!Array.isArray(parsed)) throw new Error('not a JSON array');
+    candidates = dedupeByUrl(
+      parsed.map((c) => ({
+        name: c.name || 'Unnamed',
+        sub: c.sub || '',
+        url: c.url,
+        type: c.type || (/\.m3u8(\?|$)/i.test(c.url || '') ? 'hls' : 'mp3'),
+      }))
+    );
+    fetchStatus.textContent = `Loaded ${candidates.length} unique stations from pasted list.`;
+    afterCandidatesLoaded();
+  } catch (e) {
+    fetchStatus.textContent = 'Invalid JSON: ' + e.message;
+  }
+});
+
+function afterCandidatesLoaded() {
+  renderTable();
+  scanSection.style.display = 'block';
+  exportSection.style.display = 'none';
+}
+
+function renderTable() {
+  resultsBody.innerHTML = '';
+  statusCells = new Map();
+  candidates.forEach((c, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td>${escapeHtml(c.name)}</td>` +
+      `<td class="url-cell">${escapeHtml(c.url)}</td>` +
+      `<td>${escapeHtml(c.type)}</td>` +
+      `<td class="status-cell">Queued</td>`;
+    resultsBody.appendChild(tr);
+    statusCells.set(i, tr.querySelector('.status-cell'));
+  });
+}
+
+function testStreamPlayable(audioEl, hlsHolder, url, type) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      audioEl.removeEventListener('playing', onPlaying);
+      audioEl.removeEventListener('error', onError);
+      resolve(ok);
+    };
+    const onPlaying = () => finish(true);
+    const onError = () => finish(false);
+    const timer = setTimeout(() => finish(false), TEST_TIMEOUT_MS);
+
+    audioEl.addEventListener('playing', onPlaying);
+    audioEl.addEventListener('error', onError);
+
+    if (hlsHolder.hls) { hlsHolder.hls.destroy(); hlsHolder.hls = null; }
+    if (type === 'hls' && window.Hls && Hls.isSupported()) {
+      hlsHolder.hls = new Hls();
+      hlsHolder.hls.loadSource(url);
+      hlsHolder.hls.attachMedia(audioEl);
+      hlsHolder.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        audioEl.play().catch(() => finish(false));
+      });
+      hlsHolder.hls.on(Hls.Events.ERROR, (evt, data) => {
+        if (data.fatal) finish(false);
+      });
+    } else {
+      audioEl.src = url;
+      audioEl.play().catch(() => finish(false));
+    }
+  });
+}
+
+function stopTestAudio(audioEl, hlsHolder) {
+  audioEl.pause();
+  if (hlsHolder.hls) { hlsHolder.hls.destroy(); hlsHolder.hls = null; }
+  audioEl.removeAttribute('src');
+}
+
+startScanBtn.addEventListener('click', runScan);
+stopScanBtn.addEventListener('click', () => { scanAborted = true; });
+
+async function runScan() {
+  if (scanRunning || candidates.length === 0) return;
+  scanRunning = true;
+  scanAborted = false;
+  startScanBtn.disabled = true;
+  stopScanBtn.style.display = '';
+  exportSection.style.display = 'none';
+
+  const concurrency = Math.max(1, Math.min(20, parseInt(concurrencyInput.value, 10) || 6));
+  let nextIndex = 0;
+  let tested = 0;
+  let working = 0;
+
+  const updateProgress = () => {
+    scanProgress.textContent = `Tested ${tested}/${candidates.length} · ${working} working`;
+  };
+  updateProgress();
+
+  async function worker() {
+    while (nextIndex < candidates.length && !scanAborted) {
+      const i = nextIndex++;
+      const candidate = candidates[i];
+      const cell = statusCells.get(i);
+      cell.textContent = 'Testing…';
+      cell.className = 'status-cell testing';
+
+      const audioEl = document.createElement('audio');
+      audioEl.muted = true;
+      audioEl.preload = 'none';
+      const hlsHolder = { hls: null };
+      const ok = await testStreamPlayable(audioEl, hlsHolder, candidate.url, candidate.type);
+      stopTestAudio(audioEl, hlsHolder);
+
+      candidate._ok = ok;
+      cell.textContent = ok ? 'Working' : 'No response';
+      cell.className = 'status-cell ' + (ok ? 'ok' : 'fail');
+      tested++;
+      if (ok) working++;
+      updateProgress();
+    }
+  }
+
+  const workers = [];
+  for (let w = 0; w < concurrency; w++) workers.push(worker());
+  await Promise.all(workers);
+
+  scanRunning = false;
+  startScanBtn.disabled = false;
+  stopScanBtn.style.display = 'none';
+  if (scanAborted) scanProgress.textContent += ' · stopped early';
+  buildExport();
+}
+
+function buildExport() {
+  const working = candidates
+    .filter((c) => c._ok)
+    .map((c) => ({ name: c.name, sub: c.sub || '', url: c.url, type: c.type }));
+  exportOutput.value = JSON.stringify(working, null, 2);
+  exportSection.style.display = 'block';
+}
+
+copyBtn.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(exportOutput.value);
+    copyBtn.textContent = 'Copied!';
+    setTimeout(() => { copyBtn.textContent = 'Copy JSON to clipboard'; }, 1500);
+  } catch (e) {
+    exportOutput.select();
+    document.execCommand('copy');
+  }
+});
+
+downloadBtn.addEventListener('click', () => {
+  const blob = new Blob([exportOutput.value], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'working-stations.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+
+</body>
+</html>
