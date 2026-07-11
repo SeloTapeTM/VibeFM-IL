@@ -4,6 +4,11 @@ A minimal Capacitor wrapper around a single-file HTML/JS radio player
 (`www/index.html`), packaged as a landscape-locked Android app for tablets
 and car head units. No ads, no analytics, no accounts.
 
+The same `www/index.html` also runs as a plain web page (no Capacitor
+required — the native-bridge calls are feature-detected and no-op in a
+browser) and is auto-deployed to GitHub Pages by
+`.github/workflows/deploy-pages.yml` on every push that touches `www/`.
+
 ## What's in here
 
 - `www/index.html` — the whole UI/player. Vanilla JS, hls.js for HLS
