@@ -46,6 +46,14 @@ browser) and is auto-deployed to GitHub Pages by
     further. A dead/deprecated domain that never redirects at all (no
     CORS, no 3xx, just unreachable) can't be resolved this way — that's
     just a stale URL that needs replacing, not something to auto-detect.
+  - A handful of candidates come from a long-abandoned (~2014) community
+    Israeli-radio playlist project (`kodi-il/radio-il` /
+    `eliransapir/live-il` on GitHub) rather than official sources — mostly
+    plain HTTP, unverified. Testing them from this HTTPS-served app can
+    give a false "No response" if Chrome's mixed-content handling silently
+    blocks the http:// request before it even reaches the server; opening
+    `tools/station-scanner.html` via `file://` avoids that entirely, so
+    it's the more reliable place to test this batch specifically.
 - `www/hls.min.js` — vendored copy of hls.js 1.5.13 (no CDN dependency at
   runtime).
 - `android/` — the Capacitor-generated Android project, plus:
