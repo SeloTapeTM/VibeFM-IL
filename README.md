@@ -17,12 +17,24 @@ browser) and is auto-deployed to GitHub Pages by
   to add your own (name, URL, HLS/MP3 auto-detected from the URL), stored
   in `localStorage` on the device. No rebuild needed to add/remove a
   station.
-  - "🔍 Scan for stations" tests a small built-in list of known Israeli
-    stream URLs live in the browser (plays each one briefly, real
-    verification, not a static list) and only offers to add the ones that
-    actually respond right now. Toggle "Auto-add stations that work" to
-    skip the per-station confirmation, or leave it off to listen to each
-    one yourself before adding it.
+  - "🔍 Scan for stations" tests a built-in list of known Israeli stream
+    URLs live in the browser (plays each one briefly, real verification,
+    not a static list) and only offers to add the ones that actually
+    respond right now. Toggle "Auto-add stations that work" to skip the
+    per-station confirmation, or leave it off to listen to each one
+    yourself before adding it. A few of the candidates are pattern-matched
+    guesses off the same CDN as a confirmed neighbor (not independently
+    verified) — harmless if wrong, they just show "No response".
+  - Manually adding a station also tests the URL before saving (same
+    live-check as the scanner) and offers "Save anyway" if the test fails
+    but you want to keep the URL regardless.
+  - In practice, expect most stream URLs to fail this test even when
+    they're genuinely live: Israeli broadcasters commonly restrict direct
+    stream access to their own site's Origin/Referer (anti-hotlinking),
+    which blocks *any* third-party page — this app included. There's no
+    getting around that without a server-side relay, which is out of scope
+    for a single-file client app. The scanner exists to sort out which
+    stream URLs happen to allow this regardless.
 - `www/hls.min.js` — vendored copy of hls.js 1.5.13 (no CDN dependency at
   runtime).
 - `android/` — the Capacitor-generated Android project, plus:

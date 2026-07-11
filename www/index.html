@@ -472,6 +472,7 @@
 
 <audio id="audio" preload="none"></audio>
 <audio id="scanAudio" preload="none"></audio>
+<audio id="addTestAudio" preload="none"></audio>
 
 <div id="addModalBackdrop">
   <div id="addModal">
@@ -489,6 +490,7 @@
       <option value="hls">HLS (.m3u8)</option>
     </select>
     <div id="addError"></div>
+    <span id="addSaveAnywayLink" class="text-link" style="display:none;">Save anyway (skip verification)</span>
     <div class="modal-actions">
       <button id="addCancelBtn">Cancel</button>
       <button id="addSaveBtn">Save</button>
@@ -545,6 +547,8 @@ const addType = document.getElementById('addType');
 const addError = document.getElementById('addError');
 const addCancelBtn = document.getElementById('addCancelBtn');
 const addSaveBtn = document.getElementById('addSaveBtn');
+const addSaveAnywayLink = document.getElementById('addSaveAnywayLink');
+const addTestAudio = document.getElementById('addTestAudio');
 
 const scanAudio = document.getElementById('scanAudio');
 const scanModalBackdrop = document.getElementById('scanModalBackdrop');
@@ -725,17 +729,24 @@ audio.addEventListener('playing', () => { statusEl.textContent = '● Live'; });
 audio.addEventListener('error', () => { statusEl.textContent = 'Stream error — try another station'; });
 
 /* ---------- Add-station modal ---------- */
+const addHlsHolder = { hls: null };
+let addModalOpen = false;
+
 function openAddModal() {
+  addModalOpen = true;
   addName.value = '';
   addSub.value = '';
   addUrl.value = '';
   addType.value = 'auto';
   addError.textContent = '';
+  addSaveAnywayLink.style.display = 'none';
   addModalBackdrop.classList.add('open');
   addName.focus();
 }
 
 function closeAddModal() {
+  addModalOpen = false;
+  stopTestAudio(addTestAudio, addHlsHolder);
   addModalBackdrop.classList.remove('open');
 }
 
@@ -745,9 +756,20 @@ addModalBackdrop.addEventListener('click', (evt) => {
   if (evt.target === addModalBackdrop) closeAddModal();
 });
 
-addSaveBtn.addEventListener('click', () => {
+function finalizeSaveStation(station) {
+  const wasEmpty = stations.length === 0;
+  stations.push(station);
+  saveStations();
+  renderStations();
+  closeAddModal();
+  if (wasEmpty) selectStation(0, true);
+}
+
+async function attemptSaveStation(skipTest) {
   const name = addName.value.trim();
   const url = addUrl.value.trim();
+  addSaveAnywayLink.style.display = 'none';
+
   if (!name || !url) {
     addError.textContent = 'Name and URL are required.';
     return;
@@ -764,24 +786,43 @@ addSaveBtn.addEventListener('click', () => {
     return;
   }
 
-  const wasEmpty = stations.length === 0;
-  stations.push({
-    name,
-    sub: addSub.value.trim(),
-    url,
-    type: detectType(url, addType.value),
-  });
-  saveStations();
-  renderStations();
-  closeAddModal();
+  const type = detectType(url, addType.value);
+  const station = { name, sub: addSub.value.trim(), url, type };
 
-  if (wasEmpty) selectStation(0, true);
-});
+  if (skipTest) {
+    finalizeSaveStation(station);
+    return;
+  }
+
+  addSaveBtn.disabled = true;
+  addSaveBtn.textContent = 'Testing…';
+  addError.textContent = '';
+  const ok = await testStreamPlayable(addTestAudio, addHlsHolder, url, type);
+  stopTestAudio(addTestAudio, addHlsHolder);
+  addSaveBtn.disabled = false;
+  addSaveBtn.textContent = 'Save';
+
+  if (!addModalOpen) return; // user canceled while we were testing
+
+  if (!ok) {
+    addError.textContent = "Couldn't confirm this stream is live right now.";
+    addSaveAnywayLink.style.display = 'block';
+    return;
+  }
+
+  finalizeSaveStation(station);
+}
+
+addSaveBtn.addEventListener('click', () => attemptSaveStation(false));
+addSaveAnywayLink.addEventListener('click', () => attemptSaveStation(true));
 
 /* ---------- Scan for stations ---------- */
 // A small built-in list of known Israeli stream URLs. The scanner tries each
 // one live in the browser and only keeps the ones that actually respond -
 // stream URLs like these tend to rot, so we verify instead of trusting them.
+// The last few entries are pattern-matched guesses off the same CDN/infra as
+// their confirmed neighbors (not independently verified) - if wrong, they'll
+// simply show "No response" like any other dead candidate.
 const CANDIDATE_STATIONS = [
   { name: 'גלגלצ', sub: 'Galgalatz', url: 'https://glzwizzlv.bynetcdn.com/glglz_mp3', type: 'mp3' },
   { name: "כאן ב'", sub: 'Kan Bet', url: 'https://kanlivep2event-i.akamaihd.net/hls/live/749624/749624/kanbet_mp3/chunklist.m3u8', type: 'hls' },
@@ -789,16 +830,20 @@ const CANDIDATE_STATIONS = [
   { name: 'רשת גימל', sub: 'Reshet Gimmel', url: 'https://radiocast-rr-d.vidnt.com/ipbc_IPBCgimmelLAM', type: 'hls' },
   { name: '106FM', sub: 'Radio Haifa', url: 'https://106fm.livecdn.biz:7075/', type: 'mp3' },
   { name: 'אקו 99', sub: 'Eco 99FM', url: 'https://glzeco.bynetcdn.com/eco_mp3', type: 'mp3' },
+  { name: 'גלי צה"ל', sub: 'Galatz', url: 'https://glzwizzlv.bynetcdn.com/glz_mp3', type: 'mp3' },
+  { name: 'כאן אלף', sub: 'Kan Aleph', url: 'https://radiocast-rr-d.vidnt.com/ipbc_IPBCalephLAM', type: 'hls' },
+  { name: 'כאן מורשת', sub: 'Kan Moreshet', url: 'https://radiocast-rr-d.vidnt.com/ipbc_IPBCmoreshetLAM', type: 'hls' },
+  { name: 'כאן קול המוסיקה', sub: 'Kan Kol HaMusica', url: 'https://iba-s.vidnt.com/iba_radio-kanmusicaMRepeat/_definst_/smil:radio-kanmusicaM.smil/playlist.m3u8', type: 'hls' },
 ];
 
 const SCAN_TIMEOUT_MS = 9000;
 const SCAN_CONFIRM_MS = 2000;
 
-let scanHls = null;
 let scanRunning = false;
 let scanAbort = false;
 let scanRows = new Map();
 let pendingDecisionResolve = null;
+const scanHlsHolder = { hls: null };
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -808,50 +853,59 @@ function stationExists(url) {
   return stations.some((s) => s.url === url);
 }
 
-function destroyScanHls() {
-  if (scanHls) { scanHls.destroy(); scanHls = null; }
-}
-
-function stopScanAudio() {
-  scanAudio.pause();
-  destroyScanHls();
-  scanAudio.removeAttribute('src');
-}
-
-function testCandidate(candidate) {
+// Shared verification: loads a URL into a scratch <audio> element and
+// resolves true only if it actually starts playing before the timeout.
+// Used both by the scanner and by "test before saving" in the add-station
+// modal, so any stream - built-in candidate or one you find elsewhere -
+// gets the same live check.
+function testStreamPlayable(audioEl, hlsHolder, url, type) {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (ok) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      scanAudio.removeEventListener('playing', onPlaying);
-      scanAudio.removeEventListener('error', onError);
+      audioEl.removeEventListener('playing', onPlaying);
+      audioEl.removeEventListener('error', onError);
       resolve(ok);
     };
     const onPlaying = () => finish(true);
     const onError = () => finish(false);
     const timer = setTimeout(() => finish(false), SCAN_TIMEOUT_MS);
 
-    scanAudio.addEventListener('playing', onPlaying);
-    scanAudio.addEventListener('error', onError);
+    audioEl.addEventListener('playing', onPlaying);
+    audioEl.addEventListener('error', onError);
 
-    destroyScanHls();
-    if (candidate.type === 'hls' && window.Hls && Hls.isSupported()) {
-      scanHls = new Hls();
-      scanHls.loadSource(candidate.url);
-      scanHls.attachMedia(scanAudio);
-      scanHls.on(Hls.Events.MANIFEST_PARSED, () => {
-        scanAudio.play().catch(() => finish(false));
+    if (hlsHolder.hls) { hlsHolder.hls.destroy(); hlsHolder.hls = null; }
+    if (type === 'hls' && window.Hls && Hls.isSupported()) {
+      hlsHolder.hls = new Hls();
+      hlsHolder.hls.loadSource(url);
+      hlsHolder.hls.attachMedia(audioEl);
+      hlsHolder.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        audioEl.play().catch(() => finish(false));
       });
-      scanHls.on(Hls.Events.ERROR, (evt, data) => {
+      hlsHolder.hls.on(Hls.Events.ERROR, (evt, data) => {
         if (data.fatal) finish(false);
       });
     } else {
-      scanAudio.src = candidate.url;
-      scanAudio.play().catch(() => finish(false));
+      audioEl.src = url;
+      audioEl.play().catch(() => finish(false));
     }
   });
+}
+
+function stopTestAudio(audioEl, hlsHolder) {
+  audioEl.pause();
+  if (hlsHolder.hls) { hlsHolder.hls.destroy(); hlsHolder.hls = null; }
+  audioEl.removeAttribute('src');
+}
+
+function testCandidate(candidate) {
+  return testStreamPlayable(scanAudio, scanHlsHolder, candidate.url, candidate.type);
+}
+
+function stopScanAudio() {
+  stopTestAudio(scanAudio, scanHlsHolder);
 }
 
 function createScanRow(candidate) {
